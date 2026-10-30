@@ -80,6 +80,7 @@ class FiveThreeTwoGame(BaseGame):
         self.pending_diffs = None
         self.left = 0           # cards still to swap with the current giver
         self.grabbed = None     # code of the card just picked from a giver (taker only)
+        self.notices = [[], [], []]   # private messages per seat, like "Bot 1 took your 9♥"
 
         self.phase = "trump"    # trump -> pick -> return -> (pick -> return ...) -> play
         self.turn = self.selector
@@ -150,6 +151,8 @@ class FiveThreeTwoGame(BaseGame):
         taker, giver, n = self.exchange_pairs[0]
         card = self.hands[giver].pop(index)
         self.grabbed = card.code    # remember it so the taker's screen can highlight it
+        # tell the giver (and only the giver) which card was taken
+        self.notices[giver].append(f"{self.name(taker)} took your {card.code}")
         self.hands[taker].append(card)
         self.phase = "return"       # now the taker must give one card back
         self.message = (f"{self.name(taker)} picked a card from {self.name(giver)} "
@@ -161,7 +164,8 @@ class FiveThreeTwoGame(BaseGame):
         self.hands[taker].remove(card)
         self.hands[giver].append(card)
         self.grabbed = None         # a card was returned: the highlight goes away
-
+        # add the returned card to the giver's message
+        self.notices[giver][-1] += f" and gave you {code}"
         self.left -= 1
         if self.left == 0:                  # done with this giver
             self.exchange_pairs.pop(0)
@@ -279,6 +283,7 @@ class FiveThreeTwoGame(BaseGame):
             } if in_exchange else None,
             # only the player who picked the card sees which one it is
             "grabbed": self.grabbed if self.phase == "return" and seat == self.turn else None,
+            "notices": self.notices[seat],   # only my own messages
             "scores": self.scores,
             "round": self.round,
             "total_rounds": TOTAL_ROUNDS,
