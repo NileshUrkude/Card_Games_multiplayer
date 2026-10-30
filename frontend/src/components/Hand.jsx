@@ -30,7 +30,6 @@ export default function Hand({ cards, aceHigh = false, playable = [], highlight 
           <div key={code} className="relative min-w-0 flex-1" style={{ maxWidth: 44 }}>
             {isNew && (
               <span className="absolute -top-4 left-1/2 z-10 -translate-x-1/2 rounded bg-yellow-400 px-1 text-[9px] font-bold text-black">
-                NEW
               </span>
             )}
             <Card

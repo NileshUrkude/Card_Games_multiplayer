@@ -55,6 +55,15 @@ export default function FiveThreeTwoTable({ room, send }) {
         bottom={
           <div className="text-center">
             <PlayerTag name={names[me] + " (you)"} active={meActive} info={info[me]} />
+            {/* Private messages: which of my cards were taken */}
+            {gs.notices.map((text, i) => (
+              <p
+                key={i}
+                className="mx-auto mt-1 w-fit rounded bg-yellow-200 px-2 py-0.5 text-xs font-semibold text-black"
+              >
+                {text}
+              </p>
+            ))}
             <p className="mt-1 text-xs text-white/80">
               {giveBack
                 ? "Tap 1 card from your hand to give back"
