@@ -79,6 +79,7 @@ class FiveThreeTwoGame(BaseGame):
         self.exchange_pairs = exchange_pairs(self.pending_diffs) if self.pending_diffs else []
         self.pending_diffs = None
         self.left = 0           # cards still to swap with the current giver
+        self.grabbed = None     # code of the card just picked from a giver (taker only)
 
         self.phase = "trump"    # trump -> pick -> return -> (pick -> return ...) -> play
         self.turn = self.selector
@@ -148,6 +149,7 @@ class FiveThreeTwoGame(BaseGame):
         """The taker blindly picks one face-down card (by position) from the giver."""
         taker, giver, n = self.exchange_pairs[0]
         card = self.hands[giver].pop(index)
+        self.grabbed = card.code    # remember it so the taker's screen can highlight it
         self.hands[taker].append(card)
         self.phase = "return"       # now the taker must give one card back
         self.message = (f"{self.name(taker)} picked a card from {self.name(giver)} "
@@ -158,6 +160,8 @@ class FiveThreeTwoGame(BaseGame):
         card = self.find_card(seat, code)
         self.hands[taker].remove(card)
         self.hands[giver].append(card)
+        self.grabbed = None         # a card was returned: the highlight goes away
+
         self.left -= 1
         if self.left == 0:                  # done with this giver
             self.exchange_pairs.pop(0)
@@ -273,6 +277,8 @@ class FiveThreeTwoGame(BaseGame):
                 "giver": self.exchange_pairs[0][1],
                 "left": self.left,
             } if in_exchange else None,
+            # only the player who picked the card sees which one it is
+            "grabbed": self.grabbed if self.phase == "return" and seat == self.turn else None,
             "scores": self.scores,
             "round": self.round,
             "total_rounds": TOTAL_ROUNDS,

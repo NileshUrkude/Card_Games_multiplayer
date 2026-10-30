@@ -7,11 +7,12 @@ const ACE_HIGH = [...BASE, "A"]; // 5-3-2
 
 const split = (code) => ({ rank: code.slice(0, -1), suit: code.slice(-1) });
 
-export default function Hand({ cards, aceHigh = false, playable = [], onPlay }) {
+// highlight = list of card codes to glow (the card just grabbed in 5-3-2)
+export default function Hand({ cards, aceHigh = false, playable = [], highlight = [], onPlay }) {
   const ranks = aceHigh ? ACE_HIGH : ACE_LOW;
   const myTurn = playable.length > 0; // the server sends moves only on my turn
 
-  // Put cards in a consistent order so the hand always looks familiar.
+  // Sort by suit order, then by rank
   const sorted = [...cards].sort((a, b) => {
     const A = split(a);
     const B = split(b);
@@ -21,14 +22,21 @@ export default function Hand({ cards, aceHigh = false, playable = [], onPlay }) 
 
   return (
     // One row, side by side. Each card shrinks a little so all fit on the screen.
-    <div className="flex justify-center gap-0.5 pt-3">
+    <div className="flex justify-center gap-0.5 pt-4">
       {sorted.map((code) => {
         const canPlay = playable.includes(code);
+        const isNew = highlight.includes(code);
         return (
-          <div key={code} className="min-w-0 flex-1" style={{ maxWidth: 44 }}>
+          <div key={code} className="relative min-w-0 flex-1" style={{ maxWidth: 44 }}>
+            {isNew && (
+              <span className="absolute -top-4 left-1/2 z-10 -translate-x-1/2 rounded bg-yellow-400 px-1 text-[9px] font-bold text-black">
+                NEW
+              </span>
+            )}
             <Card
               code={code}
               fill
+              highlight={isNew}
               playable={canPlay}
               dim={myTurn && !canPlay}
               onClick={canPlay ? () => onPlay(code) : undefined}

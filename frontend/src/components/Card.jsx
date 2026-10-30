@@ -14,7 +14,8 @@ export default function Card({
   inline = false,    // show "8♥" in one line in the corner (for overlapped cards)
   fill = false,      // card fills the width of its box (used in the hand)
   playable = false,
-  dim = false,       // card cannot be played now: solid grey (never see-through)
+  dim = false,       // card cannot be played now: light grey background
+  highlight = false, // card was just grabbed from another player: yellow glow
   onClick, style,
 }) {
   const dims = fill
@@ -41,18 +42,20 @@ export default function Card({
   const red = suit === "♥" || suit === "♦";
   const Tag = onClick ? "button" : "div"; // only playable cards are buttons
 
-  const colors =
-    (dim ? "bg-gray-200 " : "bg-white ") + (red ? "text-red-600 " : "text-black ");
+  // Hearts and diamonds are always red, spades and clubs always black.
+  // Background: yellow if just grabbed, light grey if not playable now, else white.
+  const background = highlight ? "bg-yellow-100 " : dim ? "bg-gray-200 " : "bg-white ";
+  const colors = background + (red ? "text-red-600 " : "text-black ");
+
+  // Border and position: grabbed card is lifted the most, with a glow
+  const look = highlight
+    ? "-translate-y-3 border-2 border-yellow-500 ring-2 ring-yellow-400 "
+    : playable
+    ? "-translate-y-2 border-2 border-green-500 "
+    : "border-gray-400 ";
 
   return (
-    <Tag
-      onClick={onClick}
-      style={style}
-      className={
-        base + "font-bold " + colors +
-        (playable ? "-translate-y-2 border-2 border-green-500 " : "border-gray-400 ")
-      }
-    >
+    <Tag onClick={onClick} style={style} className={base + "font-bold " + colors + look}>
       {inline ? (
         <span className="absolute left-1 top-0.5 leading-none">{rank}{suit}</span>
       ) : (

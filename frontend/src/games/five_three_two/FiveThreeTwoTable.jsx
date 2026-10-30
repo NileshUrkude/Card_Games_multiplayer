@@ -67,6 +67,7 @@ export default function FiveThreeTwoTable({ room, send }) {
             <Hand
               cards={gs.my_hand}
               aceHigh
+              highlight={gs.grabbed ? [gs.grabbed] : []}
               playable={chooseTrump || pickCard ? [] : gs.my_moves}
               onPlay={play}
             />
