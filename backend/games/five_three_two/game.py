@@ -192,6 +192,7 @@ class FiveThreeTwoGame(BaseGame):
         if not self.hold:
             return
         self.hold = False
+        self.notices = [[], [], []]    # play has started: the "took your card" messages go away
         if self.sweeping:              # the cards reached the winner: the winner leads now
             self.sweeping = False
         elif len(self.trick) == 3:     # 3 cards on the table: decide the trick
