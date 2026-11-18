@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Card from "./Card";
-import { FLY, OFFSET_PX, slotOf } from "./TableSeats";
+import { FLY, OFFSET_PX, slotOf } from "./seatMath";
 
 // One card on the table. It moves with a smooth transition.
 //   enter = starts at the player's seat and flies to the middle

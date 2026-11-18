@@ -210,7 +210,7 @@ export default function AstaTable({ room, send }) {
       </div> */}
 
       {/* The board, with each player's name beside their home house */}
-      <div className="relative px-12 py-6">
+      <div className="relative px-9 py-6">
         <div className="grid grid-cols-5 gap-1 rounded-xl bg-orange-200 p-2">{cells}</div>
 
         {names.map((n, s) => (
@@ -218,8 +218,7 @@ export default function AstaTable({ room, send }) {
             key={s}
             className={
               labelFor(s) +
-              " z-10 whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-bold text-black"
-            }
+              " z-10 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold text-black"            }
             // Same light colour as this player's home house
             style={{ background: gs.colors[s] + "40" }}
           >

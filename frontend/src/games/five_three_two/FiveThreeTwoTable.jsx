@@ -44,7 +44,16 @@ export default function FiveThreeTwoTable({ room, send }) {
       <p className="mb-2 font-semibold">
         Round {gs.round} of {gs.total_rounds}
       </p>
-      <p className="mb-2 rounded bg-yellow-100 p-2 text-sm">{gs.message}</p>
+      
+      <div className="mb-2 flex items-center justify-between gap-2 rounded bg-yellow-100 p-2 text-sm">
+        <span className="min-w-0 flex-1">{gs.message}</span>
+        <span className="shrink-0 font-semibold">
+          Trump{" "}
+          <b className={"text-lg " + (gs.trump && isRed(gs.trump) ? "text-red-600" : "")}>
+            {gs.trump || "?"}
+          </b>
+        </span>
+      </div>
 
       <TableSeats
         names={names}
@@ -93,13 +102,6 @@ export default function FiveThreeTwoTable({ room, send }) {
           total={names.length}
         />
 
-        {/* Trump suit, on the left side of the table */}
-        <div className="absolute left-2 top-1/2 -translate-y-1/2 rounded bg-white px-2 py-1 text-xs font-semibold">
-          Trump
-          <div className={"text-center text-xl " + (gs.trump && isRed(gs.trump) ? "text-red-600" : "")}>
-            {gs.trump || "?"}
-          </div>
-        </div>
 
         {/* Trump choice (only for the trump selector) */}
         {chooseTrump && (

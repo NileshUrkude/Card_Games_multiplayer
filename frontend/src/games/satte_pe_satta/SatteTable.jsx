@@ -2,7 +2,8 @@ import Card from "../../components/Card";
 import FlyIn from "../../components/FlyIn";
 import Hand from "../../components/Hand";
 import ResultOverlay from "../../components/ResultOverlay";
-import TableSeats, { FLY, PlayerTag, slotOf } from "../../components/TableSeats";
+import TableSeats, { PlayerTag } from "../../components/TableSeats";
+import { FLY, slotOf } from "../../components/seatMath";
 
 const SUITS = ["♠", "♥", "♣", "♦"];
 const FACE = { 1: "A", 11: "J", 12: "Q", 13: "K" };
@@ -93,7 +94,7 @@ export default function SatteTable({ room, send }) {
         turn={gs.round_over ? null : gs.turn}
         info={gs.scores.map((s) => `${s} pts`)}
         status={gs.status}
-        height="h-[34rem]"
+        height="h-[min(34rem,68vh)]"
         bottom={
           <div className="text-center">
             <PlayerTag name={names[me] + " (you)"} active={meActive} info={`${gs.scores[me]} pts`} />

@@ -11,7 +11,9 @@ ROOMS = {}
 GAMES = {
     "satte_pe_satta": {"name": "Satte pe Satta", "icon": "7♥", "seats": 5, "min_players": 4},
     "five_three_two": {"name": "5-3-2", "icon": "5♠", "seats": 3, "min_players": 3},
-    "asta_chamma": {"name": "Asta Chamma", "icon": "X", "seats": 4, "min_players": 4},
+    "court": {"name": "Court", "icon": "A♠", "seats": 4, "min_players": 4, "soon": True},
+    "asta_chamma": {"name": "Asta Chamma", "icon": "8♣", "seats": 4, "min_players": 4},
+
 }
 
 

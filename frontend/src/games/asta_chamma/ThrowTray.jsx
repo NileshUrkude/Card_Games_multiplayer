@@ -17,8 +17,7 @@ const KEYFRAMES = `
 function Shell({ index, rolling, open }) {
   return (
     <div
-      className="relative h-12 w-16 rounded-[50%] border border-amber-200 bg-linear-to-b from-white to-amber-100 shadow-md"
-      style={{
+      className="relative h-10 w-12 rounded-[50%] border border-amber-200 bg-linear-to-b from-white to-amber-100 shadow-md"      style={{
         // While rolling, play the animation. Each shell starts a little later.
         animation: rolling ? `shellRoll 0.9s ease-in-out ${index * 0.08}s infinite` : "none",
       }}
@@ -82,7 +81,7 @@ export default function ThrowTray({ canThrow, onThrow, openSides, throwValue, ex
       <div className="relative">
         <p className="mb-2 text-sm font-bold text-white">{label}</p>
 
-        <div className="flex justify-center gap-3">
+        <div className="flex justify-center gap-2">
           {[0, 1, 2, 3].map((i) => (
             <Shell key={i} index={i} rolling={rolling} open={!rolling && landed[i]} />
           ))}

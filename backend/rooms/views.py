@@ -8,7 +8,13 @@ from . import store
 def games(request):
     """List of games for the home screen."""
     return Response([
-        {"id": key, "name": g["name"], "icon": g["icon"], "seats": g["seats"]}
+        {
+            "id": key,
+            "name": g["name"],
+            "icon": g["icon"],
+            "seats": g["seats"],
+            "soon": g.get("soon", False),   # True = shown with a SOON badge
+        }
         for key, g in store.GAMES.items()
     ])
 

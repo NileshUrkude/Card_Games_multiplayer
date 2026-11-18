@@ -15,14 +15,13 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen overflow-x-hidden bg-gray-100">
       <header className="relative flex items-center justify-between bg-green-900 px-4 py-2 text-white">
         <Link to="/" className="font-bold">♠ Card Games</Link>
 
         {/* Profile badge in the corner */}
         <button onClick={() => setOpen(!open)} className="flex items-center gap-2">
-          <span className="text-sm">{name || "Set name"}</span>
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-300 font-bold text-black">
+          <span className="max-w-28 truncate text-sm">{name || "Set name"}</span>          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-300 font-bold text-black">
             {name ? name[0].toUpperCase() : "?"}
           </span>
         </button>
