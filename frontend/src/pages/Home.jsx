@@ -35,6 +35,17 @@ export default function Home() {
           </button>
         ))}
       </div>
+
+    {/* Footer: who made this */}
+    <footer className="mt-auto border-t border-gray-300 pt-5 text-center text-sm text-gray-600">
+      <p className="text-xs">Card Games</p>
+
+      <p>
+        Created by <span className="font-semibold text-gray-800">Nilesh Urkude</span>
+      </p>      
+
+      <p>For feedback and suggestions, please contact us at nileshburkude@gmail.com</p>
+    </footer>
     </div>
   );
 }

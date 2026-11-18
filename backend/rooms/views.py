@@ -17,12 +17,14 @@ def games(request):
 def create(request):
     game = request.data.get("game")
     name = request.data.get("name", "").strip()
+    solo = bool(request.data.get("solo", False))
+    mode = request.data.get("mode", "single")          # "single" or "team"
+    if mode not in ("single", "team"):
+        mode = "single"
     if game not in store.GAMES or not name:
         return Response({"error": "Enter your name first"}, status=400)
-    solo = bool(request.data.get("solo", False))
-    code, player_id = store.create_room(game, name, solo)
+    code, player_id = store.create_room(game, name, solo, mode)
     return Response({"code": code, "player_id": player_id})
-
 
 @api_view(["POST"])
 def join(request):

@@ -7,17 +7,18 @@ export default function GameMenu() {
   const [game, setGame] = useState(null);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const { name } = useOutletContext(); // from Layout
+  const { name } = useOutletContext();      // name from the profile corner
+  const isAsta = gameId === "asta_chamma";  // Asta Chamma has 2 bot modes
 
   // Find this game's name and icon from the list
   useEffect(() => {
     getGames().then((list) => setGame(list.find((g) => g.id === gameId)));
   }, [gameId]);
 
-  // "Play": make a room where every other seat is a bot
-  async function playWithBots() {
+  // Play with bots: make a room where every other seat is a bot, and start at once
+  async function playWithBots(mode) {
     try {
-      const data = await createRoom(gameId, name, true);
+      const data = await createRoom(gameId, name || "Player", true, mode);
       savePlayer(data);
       navigate("/room/" + data.code);
     } catch (e) {
@@ -33,13 +34,22 @@ export default function GameMenu() {
       <h1 className="mb-6 text-2xl font-bold">{game.name}</h1>
       {error && <p className="mb-3 text-red-600">{error}</p>}
 
-      <button onClick={playWithBots} className="mb-3 w-full rounded bg-green-700 p-3 text-white">
-        Play (with bots)
-      </button>
-      <Link
-        to={`/game/${gameId}/friends`}
-        className="block w-full rounded bg-blue-700 p-3 text-white"
-      >
+      {isAsta ? (
+        <>
+          <button onClick={() => playWithBots("single")} className="mb-3 w-full rounded bg-green-700 p-3 text-white">
+            Single (you + 3 bots, everyone for themselves)
+          </button>
+          <button onClick={() => playWithBots("team")} className="mb-3 w-full rounded bg-green-700 p-3 text-white">
+            Team 2 vs 2 (a bot is your partner)
+          </button>
+        </>
+      ) : (
+        <button onClick={() => playWithBots("single")} className="mb-3 w-full rounded bg-green-700 p-3 text-white">
+          Play (with bots)
+        </button>
+      )}
+
+      <Link to={`/game/${gameId}/friends`} className="block w-full rounded bg-blue-700 p-3 text-white">
         Play with friends
       </Link>
       <Link to="/" className="mt-6 block text-sm text-gray-600">← All games</Link>

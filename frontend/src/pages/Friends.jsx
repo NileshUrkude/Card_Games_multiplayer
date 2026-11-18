@@ -4,12 +4,14 @@ import { createRoom, joinRoom, savePlayer } from "../api";
 
 export default function Friends() {
   const { gameId } = useParams();
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
+  const { name } = useOutletContext();
   const navigate = useNavigate();
-  const { name } = useOutletContext(); // from Layout
+  const [code, setCode] = useState("");
+  const [mode, setMode] = useState("single");   // used by Asta Chamma only
+  const [error, setError] = useState("");
+  const isAsta = gameId === "asta_chamma";
 
-  // Same steps for create and join: save my id, open the lobby
+  // Same steps for create and join: save my id, then open the room
   async function go(action) {
     try {
       const data = await action();
@@ -25,8 +27,26 @@ export default function Friends() {
       <h1 className="mb-4 text-2xl font-bold">Play with friends</h1>
       {error && <p className="mb-3 text-red-600">{error}</p>}
 
+      {/* Asta Chamma: choose the mode for the room */}
+      {isAsta && (
+        <div className="mb-3 flex gap-2">
+          <button
+            onClick={() => setMode("single")}
+            className={"flex-1 rounded p-2 " + (mode === "single" ? "bg-green-700 text-white" : "bg-gray-200")}
+          >
+            Single
+          </button>
+          <button
+            onClick={() => setMode("team")}
+            className={"flex-1 rounded p-2 " + (mode === "team" ? "bg-green-700 text-white" : "bg-gray-200")}
+          >
+            Team 2 vs 2
+          </button>
+        </div>
+      )}
+
       <button
-        onClick={() => go(() => createRoom(gameId, name))}
+        onClick={() => go(() => createRoom(gameId, name || "Player", false, mode))}
         className="mb-6 w-full rounded bg-green-700 p-3 text-white"
       >
         Create a room
@@ -41,7 +61,7 @@ export default function Friends() {
           onChange={(e) => setCode(e.target.value)}
         />
         <button
-          onClick={() => go(() => joinRoom(code.trim().toUpperCase(), name))}
+          onClick={() => go(() => joinRoom(code.trim().toUpperCase(), name || "Player"))}
           className="rounded bg-blue-700 px-4 text-white"
         >
           Join

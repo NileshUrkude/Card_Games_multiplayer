@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { roomSocketUrl } from "../api";
 import FiveThreeTwoTable from "../games/five_three_two/FiveThreeTwoTable";
 import SatteTable from "../games/satte_pe_satta/SatteTable";
+import AstaTable from "../games/asta_chamma/AstaTable";
 
 export default function Lobby() {
   const { code } = useParams();
@@ -29,8 +30,23 @@ export default function Lobby() {
   // Send a message to the server, like { action: "start" }
   const send = (msg) => socket.current.send(JSON.stringify(msg));
 
-  if (lost) return <p className="p-6 text-red-600">Disconnected. Go back and join again.</p>;
-  if (!room) return <p className="p-6">Connecting...</p>;
+  // Disconnected: the room is still kept on the server, and this browser remembers
+  // who you are, so one refresh continues the game.
+  if (lost)
+    return (
+      <div className="p-6 text-center">
+        <p className="mb-2 font-semibold text-red-600">Disconnected</p>
+        <p className="mb-4 text-sm">Refresh the page once to continue.</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="rounded bg-green-700 px-4 py-2 text-white"
+        >
+          Refresh
+        </button>
+      </div>
+    );
+
+if (!room) return <p className="p-6">Connecting...</p>;
 
   return (
     <div className="mx-auto max-w-lg p-4">
@@ -69,6 +85,9 @@ export default function Lobby() {
       )}
       {room.started && room.game === "five_three_two" && (
         <FiveThreeTwoTable room={room} send={send} />
+      )}
+      {room.started && room.game === "asta_chamma" && (
+        <AstaTable room={room} send={send} />
       )}
     </div>
   );

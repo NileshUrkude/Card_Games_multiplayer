@@ -15,8 +15,9 @@ async function post(path, body) {
 export const getGames = () => fetch(API + "/games/").then((r) => r.json());
 export const getRoom = (code) => fetch(API + `/rooms/${code}/`).then((r) => r.json());
 
-export const createRoom = (game, name, solo = false) =>
-  post("/rooms/create/", { game, name, solo });
+// mode is "single" or "team" (Asta Chamma only). Other games ignore it.
+export const createRoom = (game, name, solo = false, mode = "single") =>
+  post("/rooms/create/", { game, name, solo, mode });
 
 export function savePlayer(data) {
   localStorage.setItem("player_" + data.code, data.player_id);

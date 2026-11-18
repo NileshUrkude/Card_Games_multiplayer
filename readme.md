@@ -18,4 +18,10 @@ Notes:
 - The table should fit the screen properly in the browser
 
 ### What to next
-1. deplay project on github and render.
+1. remove number from token and add any icon.
+2. after token finish one more chance to play.
+3. show cowris suffaling. 
+4. in all games when disconnect show massage disconnect. refresh once to continue.
+5. when cut token they also slide towards the house.
+6. in satte pe satta game card show same size its ok to create new row below cards.
+7. when token cut its go own house(starting point) in single and team game both.
