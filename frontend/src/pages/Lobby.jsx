@@ -4,6 +4,9 @@ import { roomSocketUrl } from "../api";
 import FiveThreeTwoTable from "../games/five_three_two/FiveThreeTwoTable";
 import SatteTable from "../games/satte_pe_satta/SatteTable";
 import AstaTable from "../games/asta_chamma/AstaTable";
+import CourtTable from "../games/court/CourtTable";
+import WaitingSeats from "../components/WaitingSeats";
+
 
 export default function Lobby() {
   const { code } = useParams();
@@ -60,12 +63,7 @@ if (!room) return <p className="p-6">Connecting...</p>;
       {/* Waiting room (before the game starts) */}
       {!room.started && (
         <>
-          {room.seats.map((name, i) => (
-            <div key={i} className="mb-2 rounded border p-3">
-              Seat {i + 1}: {name || <span className="text-gray-400">waiting...</span>}
-              {i === room.my_seat && " (you)"}
-            </div>
-          ))}
+          <WaitingSeats room={room} />
           {room.is_host ? (
             <button
               onClick={() => send({ action: "start" })}
@@ -88,6 +86,9 @@ if (!room) return <p className="p-6">Connecting...</p>;
       )}
       {room.started && room.game === "asta_chamma" && (
         <AstaTable room={room} send={send} />
+      )}
+      {room.started && room.game === "court" && (
+        <CourtTable room={room} send={send} />
       )}
     </div>
   );

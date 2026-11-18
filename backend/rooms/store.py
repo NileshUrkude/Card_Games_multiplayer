@@ -11,10 +11,18 @@ ROOMS = {}
 GAMES = {
     "satte_pe_satta": {"name": "Satte pe Satta", "icon": "7♥", "seats": 5, "min_players": 4},
     "five_three_two": {"name": "5-3-2", "icon": "5♠", "seats": 3, "min_players": 3},
-    "court": {"name": "Court", "icon": "A♠", "seats": 4, "min_players": 4, "soon": True},
-    "asta_chamma": {"name": "Asta Chamma", "icon": "8♣", "seats": 4, "min_players": 4},
-
+    "asta_chamma": {"name": "Asta Chamma", "icon": "8♦", "seats": 4, "min_players": 4},
+    "court": {"name": "Court", "icon": "Q♠", "seats": 4, "min_players": 4},
 }
+
+
+def is_team_room(room):
+    """Team rooms have places grouped into teams:
+    Court always, and Asta Chamma only in team mode.
+    Team 1 = places 0 and 2, Team 2 = places 1 and 3."""
+    if room["game"] == "court":
+        return True
+    return room["game"] == "asta_chamma" and room.get("mode") == "team"
 
 
 def make_code():
@@ -25,44 +33,57 @@ def make_code():
             return code
 
 
-def create_room(game, name, solo=False, mode="single"):
+def create_room(game, name, solo=False, mode="single", seat=0):
     """Make a room. solo=True means 'play with bots' and starts at once.
-    mode is "single" or "team" (only Asta Chamma uses it)."""
+    seat = the place the creator picks (used only in team rooms)."""
     code = make_code()
-    player_id = str(uuid.uuid4())   # secret id, so the browser knows who I am
+    player_id = str(uuid.uuid4())         # secret id, so the browser knows who I am
     info = GAMES[game]
     me = {"player_id": player_id, "name": name}
+    room = {"code": code, "game": game, "seats": [None] * info["seats"],
+            "solo": solo, "mode": mode}
 
     if solo:
-        # Play with bots: I am seat 0, bots take the other seats
+        # Play with bots: I take place 0, bots take the other places
         bots = [{"player_id": None, "name": f"Bot {i}", "bot": True}
                 for i in range(1, info["min_players"])]
-        seats = [me] + bots
+        room["seats"] = [me] + bots
     else:
-        # Play with friends: empty seats wait for people to join
-        seats = [None] * info["seats"]
-        seats[0] = me
+        # Team rooms: the creator picks the place. Other rooms: first place.
+        place = seat if is_team_room(room) and 0 <= seat < info["seats"] else 0
+        room["seats"][place] = me
 
-    ROOMS[code] = {"code": code, "game": game, "seats": seats, "solo": solo, "mode": mode}
+    ROOMS[code] = room
     if solo:
-        start_game(ROOMS[code])     # no waiting room for bot games
+        start_game(room)                  # no waiting room for bot games
     return code, player_id
 
 
-def join_room(code, name):
+def join_room(code, name, seat=None):
+    """Join a room. In a team room, 'seat' is the place the player picked.
+    In other rooms, the player takes the first free place."""
     room = ROOMS.get(code)
     if room is None:
         return None, "Room not found"
-    for i, seat in enumerate(room["seats"]):
-        if seat is None:            # first empty seat
-            player_id = str(uuid.uuid4())
+
+    player_id = str(uuid.uuid4())
+    if is_team_room(room) and seat is not None:
+        if not 0 <= seat < len(room["seats"]):
+            return None, "Place not found"
+        if room["seats"][seat] is not None:
+            return None, "That place is already taken"
+        room["seats"][seat] = {"player_id": player_id, "name": name}
+        return player_id, None
+
+    for i, s in enumerate(room["seats"]):
+        if s is None:                     # first free place
             room["seats"][i] = {"player_id": player_id, "name": name}
             return player_id, None
     return None, "Room is full"
 
 
 def seat_of(room, player_id):
-    """Which seat is this player in? None if they are not in the room."""
+    """Which place is this player in? None if they are not in the room."""
     for i, seat in enumerate(room["seats"]):
         if seat and seat["player_id"] == player_id:
             return i
@@ -80,22 +101,31 @@ def room_state(room):
         "seats": [s["name"] if s else None for s in room["seats"]],
         "solo": room.get("solo", False),
         "mode": room.get("mode", "single"),
+        "teams": is_team_room(room),      # True = show Team 1 / Team 2 in the lobby
     }
 
 
 def start_game(room):
-    """Fill empty seats with bots up to the minimum, then start the game."""
+    """Fill the empty places with bots, then start the game."""
     if room.get("engine"):
-        return                              # already started
-    info = GAMES[room["game"]]
-    seats = [s for s in room["seats"] if s]
-    while len(seats) < info["min_players"]:
-        bot_no = sum(1 for s in seats if s.get("bot")) + 1
-        seats.append({"player_id": None, "name": f"Bot {bot_no}", "bot": True})
+        return                            # already started
+    if is_team_room(room):
+        # Team rooms keep every player in their own place, so teams stay correct.
+        # An empty place becomes a bot in that same place.
+        seats = []
+        for i, s in enumerate(room["seats"]):
+            seats.append(s if s else {"player_id": None, "name": f"Bot {i + 1}", "bot": True})
+    else:
+        # Other rooms: humans first, then bots until the minimum is reached
+        info = GAMES[room["game"]]
+        seats = [s for s in room["seats"] if s]
+        while len(seats) < info["min_players"]:
+            bot_no = sum(1 for s in seats if s.get("bot")) + 1
+            seats.append({"player_id": None, "name": f"Bot {bot_no}", "bot": True})
     room["seats"] = seats
 
     engine = GAME_CLASSES[room["game"]](seats)
-    engine.mode = room.get("mode", "single")   # Asta Chamma reads this (other games ignore it)
+    engine.mode = room.get("mode", "single")   # Asta Chamma and Court read this
     engine.start()
     room["engine"] = engine
 

@@ -15,15 +15,17 @@ async function post(path, body) {
 export const getGames = () => fetch(API + "/games/").then((r) => r.json());
 export const getRoom = (code) => fetch(API + `/rooms/${code}/`).then((r) => r.json());
 
-// mode is "single" or "team" (Asta Chamma only). Other games ignore it.
-export const createRoom = (game, name, solo = false, mode = "single") =>
-  post("/rooms/create/", { game, name, solo, mode });
+// seat = the place picked in a team room. Other rooms ignore it.
+export const createRoom = (game, name, solo = false, mode = "single", seat = 0) =>
+  post("/rooms/create/", { game, name, solo, mode, seat });
 
+// seat = the place picked in a team room (null = first free place)
+export const joinRoom = (code, name, seat = null) => post("/rooms/join/", { code, name, seat });
+
+// Remember who I am in this room (used by the room screen)
 export function savePlayer(data) {
   localStorage.setItem("player_" + data.code, data.player_id);
 }
-
-export const joinRoom = (code, name) => post("/rooms/join/", { code, name });
 
 // WebSocket address. http becomes ws, https becomes wss.
 export function roomSocketUrl(code, playerId) {

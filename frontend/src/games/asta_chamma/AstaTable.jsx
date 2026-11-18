@@ -17,7 +17,6 @@ function rotate(cell, turns) {
 // Move tokens ONE house at a time, in two stages:
 // 1) forward moves slide first (the token that made the move),
 // 2) only after all forward moves are finished, cut tokens slide BACK to their home.
-// So a cut token stays on its house until your token has arrived there.
 function stepToward(shown, target) {
   // Is any token still sliding forward?
   const forwardPending = shown.some((tokens, seat) =>
@@ -45,10 +44,12 @@ function stepToward(shown, target) {
 }
 
 // One token: a coloured circle with a white star icon (no number).
-// "big" = normal size, "small" = shrunk in a crowded house.
+// "big" = normal size. "small" = shrunk in a crowded house, but still visible.
 // A clickable token glows and can be touched to move.
 function Chip({ color, big, clickable, onClick }) {
-  const size = big ? "h-6 w-6 border-2" : "h-3.5 w-3.5 border";
+  const size = big
+    ? "h-5 w-5 min-w-[1.25rem] border-2 sm:h-6 sm:w-6 sm:min-w-[1.5rem]"
+    : "h-3 w-3 min-w-[0.75rem] border";
   return (
     <button
       type="button"
@@ -61,7 +62,7 @@ function Chip({ color, big, clickable, onClick }) {
       }
       style={{ background: color }}
     >
-      <svg viewBox="0 0 24 24" className={big ? "h-3.5 w-3.5" : "h-1.5 w-1.5"} fill="white">
+      <svg viewBox="0 0 24 24" className={big ? "h-2.5 w-2.5 sm:h-3 sm:w-3" : "h-1.5 w-1.5"} fill="white">
         <path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.6 7L12 17.8 5.8 21.2l1.6-7L2 9.5l7.1-.6z" />
       </svg>
     </button>
@@ -91,18 +92,15 @@ export default function AstaTable({ room, send }) {
     return () => clearTimeout(id);
   }, [shown, gs.steps]);
 
-  // Where the name label goes: the side of the board where this player's home is.
-  // Homes are always in the middle of a side, so one of these four is right.
+  // Where the name label goes, and how it is written.
+  // Top and bottom names are horizontal. Left and right names are VERTICAL,
+  // so they use the side space and not the height of the board.
   const labelFor = (seat) => {
     const [r, c] = toScreen(gs.homes[seat]);
-    const side = r === 0 ? "top" : r === 4 ? "bottom" : c === 0 ? "left" : "right";
-    const place = {
-      top: "absolute left-1/2 top-0 -translate-x-1/2",
-      bottom: "absolute bottom-0 left-1/2 -translate-x-1/2",
-      left: "absolute left-0 top-1/2 -translate-y-1/2",
-      right: "absolute right-0 top-1/2 -translate-y-1/2",
-    }[side];
-    return place;
+    if (r === 0) return { place: "absolute left-1/2 top-0 -translate-x-1/2", vertical: false };
+    if (r === 4) return { place: "absolute bottom-0 left-1/2 -translate-x-1/2", vertical: false };
+    if (c === 0) return { place: "absolute left-0 top-1/2 -translate-y-1/2", vertical: true };
+    return { place: "absolute right-0 top-1/2 -translate-y-1/2", vertical: true };
   };
 
   // The screen cell for a token at a given step.
@@ -129,7 +127,8 @@ export default function AstaTable({ room, send }) {
     })
   );
 
-  // The 25 squares. The grid size never changes; crowded houses shrink their tokens.
+  // The 25 squares. The grid size never changes. Crowded houses use smaller tokens.
+  // Tokens are NOT clipped: they wrap inside the house instead of disappearing.
   const cells = grid.flatMap((row, r) =>
     row.map((cell, c) => {
       const centre = r === 2 && c === 2;
@@ -138,7 +137,7 @@ export default function AstaTable({ room, send }) {
         <div
           key={`${r}-${c}`}
           className={
-            "relative flex aspect-square flex-wrap content-center items-center justify-center overflow-hidden border border-amber-900 " +
+            "relative flex aspect-square min-w-0 flex-wrap content-center items-center justify-center border border-amber-900 " +
             (centre ? "rounded-full bg-amber-100" : "rounded bg-orange-50")
           }
           // A home gets a light tint of its owner's colour (40 = about 25% strength)
@@ -146,10 +145,10 @@ export default function AstaTable({ room, send }) {
         >
           {/* Cross mark on a home = safe house */}
           {cell.owner !== null && (
-            <span className="absolute text-2xl font-black opacity-20">✕</span>
+            <span className="absolute text-xl font-black opacity-20">✕</span>
           )}
           {centre && cell.tokens.length === 0 && (
-            <span className="text-[10px] font-bold">FINISH</span>
+            <span className="text-[9px] font-bold">FINISH</span>
           )}
           {cell.tokens.map(({ seat, t }) => {
             // A token glows only if it is mine and I may move it now
@@ -191,8 +190,8 @@ export default function AstaTable({ room, send }) {
       : `${names[gs.winners[0]]} wins!`;
 
   return (
-    <div className="mx-auto max-w-md">
-      {/* Header: one coloured box per player, showing only tokens home
+    <div className="mx-auto w-full max-w-md">
+      {/* Header: one coloured box per player, showing only tokens home */}
       <div className="mb-2 grid grid-cols-2 gap-1 text-xs">
         {names.map((_, s) => (
           <div
@@ -207,24 +206,31 @@ export default function AstaTable({ room, send }) {
             {gs.skip[s] && " · skips next turn"}
           </div>
         ))}
-      </div> */}
+      </div>
 
-      {/* The board, with each player's name beside their home house */}
-      <div className="relative px-9 py-6">
-        <div className="grid grid-cols-5 gap-1 rounded-xl bg-orange-200 p-2">{cells}</div>
+      {/* The board. Small side padding so the board is as wide as possible. */}
+      <div className="relative px-6 py-4">
+        <div className="grid grid-cols-5 gap-0.5 rounded-xl bg-orange-200 p-1">{cells}</div>
 
-        {names.map((n, s) => (
-          <span
-            key={s}
-            className={
-              labelFor(s) +
-              " z-10 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold text-black"            }
-            // Same light colour as this player's home house
-            style={{ background: gs.colors[s] + "40" }}
-          >
-            {n}
-          </span>
-        ))}
+        {names.map((n, s) => {
+          const label = labelFor(s);
+          return (
+            <span
+              key={s}
+              className={
+                label.place +
+                " z-10 whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-bold text-black"
+              }
+              style={{
+                background: gs.colors[s] + "40",
+                // Vertical names read from top to bottom on the left and right sides
+                writingMode: label.vertical ? "vertical-rl" : "horizontal-tb",
+              }}
+            >
+              {n}
+            </span>
+          );
+        })}
 
         {gs.match_over && (
           <ResultOverlay
