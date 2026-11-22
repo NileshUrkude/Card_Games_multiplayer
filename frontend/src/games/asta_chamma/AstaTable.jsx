@@ -152,9 +152,9 @@ export default function AstaTable({ room, send }) {
           )}
           {cell.tokens.map(({ seat, t }) => {
             // A token glows only if it is mine and I may move it now
-            const clickable = moveNow && seat === me && gs.my_moves.includes(String(t));
-            // Normal size if: the house is not crowded, it can be moved, or it belongs to
-            // the player whose turn it is. Other tokens in a crowded house shrink.
+            // A finished token (in the centre) can never move, so it never glows
+            const clickable =
+              moveNow && seat === me && gs.my_moves.includes(String(t)) && gs.positions[me][t] !== "finish";            // the player whose turn it is. Other tokens in a crowded house shrink.
             const big = !crowded || clickable || seat === gs.turn;
             return (
               <Chip
@@ -171,7 +171,7 @@ export default function AstaTable({ room, send }) {
     })
   );
 
-  // Result pop-up rows: rank for single mode, team name for team mode
+  // Places: team mode, the winning team is 1st. Single mode, the finish order sets the place.
   const rows = names.map((n, s) => ({
     name: n,
     you: s === me,
@@ -183,7 +183,12 @@ export default function AstaTable({ room, send }) {
         : "not finished",
     total: `${gs.done[s]}/4 home`,
     good: gs.winners.includes(s),
+    place:
+      gs.mode === "team"
+        ? gs.winners.includes(s) ? 1 : 2
+        : gs.ranking.includes(s) ? gs.ranking.indexOf(s) + 1 : undefined,
   }));
+
   const title =
     gs.mode === "team"
       ? `Team ${gs.winners.includes(0) ? "A" : "B"} wins!`
@@ -191,22 +196,6 @@ export default function AstaTable({ room, send }) {
 
   return (
     <div className="mx-auto w-full max-w-md">
-      {/* Header: one coloured box per player, showing only tokens home */}
-      <div className="mb-2 grid grid-cols-2 gap-1 text-xs">
-        {names.map((_, s) => (
-          <div
-            key={s}
-            className={
-              "rounded px-2 py-1 text-center text-white " +
-              (gs.turn === s && !gs.match_over ? "ring-2 ring-yellow-300" : "")
-            }
-            style={{ background: gs.colors[s], textShadow: "0 0 2px #000" }}
-          >
-            {gs.done[s]}/4 home
-            {gs.skip[s] && " · skips next turn"}
-          </div>
-        ))}
-      </div>
 
       {/* The board. Small side padding so the board is as wide as possible. */}
       <div className="relative px-6 py-4">

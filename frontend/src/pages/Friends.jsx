@@ -9,14 +9,16 @@ export default function Friends() {
   const navigate = useNavigate();
   const me = name || "Player";
 
-  const [mode, setMode] = useState("single");          // Asta Chamma only
+  const isAsta = gameId === "asta_chamma";
+  const isChourail = gameId === "chourail";
+  // Asta Chamma: "single" or "team". Chourail: "2" or "4" players.
+  const [mode, setMode] = useState(isChourail ? "4" : "single");
   const [createSeat, setCreateSeat] = useState(null);  // place I pick for a new team room
   const [code, setCode] = useState("");
   const [room, setRoom] = useState(null);              // the team room found by the code
   const [joinSeat, setJoinSeat] = useState(null);      // place I pick in that room
   const [error, setError] = useState("");
 
-  const isAsta = gameId === "asta_chamma";
   // Court is always a team game. Asta Chamma is a team game in team mode.
   const isTeam = gameId === "court" || (isAsta && mode === "team");
   const emptyPlaces = [null, null, null, null];
@@ -50,7 +52,7 @@ export default function Friends() {
       <h1 className="mb-4 text-2xl font-bold">Play with friends</h1>
       {error && <p className="mb-3 text-red-600">{error}</p>}
 
-      {/* Asta Chamma: choose single or team for the room */}
+      {/* Asta Chamma: single or team */}
       {isAsta && (
         <div className="mb-3 flex gap-2">
           <button
@@ -64,6 +66,24 @@ export default function Friends() {
             className={"flex-1 rounded p-2 " + (mode === "team" ? "bg-green-700 text-white" : "bg-gray-200")}
           >
             Team 2 vs 2
+          </button>
+        </div>
+      )}
+
+      {/* Chourail: 2 or 4 players */}
+      {isChourail && (
+        <div className="mb-3 flex gap-2">
+          <button
+            onClick={() => setMode("2")}
+            className={"flex-1 rounded p-2 " + (mode === "2" ? "bg-green-700 text-white" : "bg-gray-200")}
+          >
+            2 players
+          </button>
+          <button
+            onClick={() => setMode("4")}
+            className={"flex-1 rounded p-2 " + (mode === "4" ? "bg-green-700 text-white" : "bg-gray-200")}
+          >
+            4 players
           </button>
         </div>
       )}

@@ -94,7 +94,7 @@ export default function SatteTable({ room, send }) {
         turn={gs.round_over ? null : gs.turn}
         info={gs.scores.map((s) => `${s} pts`)}
         status={gs.status}
-        height="h-[min(34rem,68vh)]"
+        height="h-[min(55rem,95vh)]"
         bottom={
           <div className="text-center">
             <PlayerTag name={names[me] + " (you)"} active={meActive} info={`${gs.scores[me]} pts`} />
@@ -120,6 +120,8 @@ export default function SatteTable({ room, send }) {
               cards={gs.my_hand}
               playable={gs.my_moves}
               onPlay={(card) => send({ action: "play", card })}
+              overlap
+              big
             />
           </div>
         }
@@ -145,6 +147,7 @@ export default function SatteTable({ room, send }) {
             subtitle={gs.match_over ? "Lowest total points wins" : gs.message}
             rows={rows}
             matchOver={gs.match_over}
+            lowerIsBetter
             isHost={room.is_host}
             onNext={() => send({ action: "next_round" })}
           />

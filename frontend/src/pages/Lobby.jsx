@@ -6,7 +6,8 @@ import SatteTable from "../games/satte_pe_satta/SatteTable";
 import AstaTable from "../games/asta_chamma/AstaTable";
 import CourtTable from "../games/court/CourtTable";
 import WaitingSeats from "../components/WaitingSeats";
-
+import RummyTable from "../games/rummy/RummyTable";
+import ChourailTable from "../games/chourail/ChourailTable";
 
 export default function Lobby() {
   const { code } = useParams();
@@ -89,6 +90,12 @@ if (!room) return <p className="p-6">Connecting...</p>;
       )}
       {room.started && room.game === "court" && (
         <CourtTable room={room} send={send} />
+      )}
+      {room.started && room.game === "rummy" && (
+        <RummyTable room={room} send={send} />
+      )}
+      {room.started && room.game === "chourail" && (
+        <ChourailTable room={room} send={send} />
       )}
     </div>
   );

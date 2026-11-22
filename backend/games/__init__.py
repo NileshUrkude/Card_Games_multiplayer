@@ -2,6 +2,8 @@ from .satte_pe_satta.game import SatteGame
 from .five_three_two.game import FiveThreeTwoGame
 from .asta_chamma.game import AstaGame
 from .court.game import CourtGame
+from .rummy.game import RummyGame
+from .chourail.game import ChourailGame
 
 # Room's game id → the class that runs it
 GAME_CLASSES = {
@@ -9,4 +11,6 @@ GAME_CLASSES = {
     "five_three_two": FiveThreeTwoGame,
     "asta_chamma": AstaGame,
     "court": CourtGame,
+    "rummy": RummyGame,
+    "chourail": ChourailGame,
 }

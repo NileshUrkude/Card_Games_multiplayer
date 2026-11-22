@@ -29,3 +29,4 @@ Open your service, click Manual Deploy, then Deploy latest commit.
 
 
 ### What to next
+1. when left room rejoin with same code. or anything for rejoin room 

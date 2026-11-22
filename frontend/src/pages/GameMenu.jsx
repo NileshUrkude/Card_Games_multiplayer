@@ -8,14 +8,15 @@ export default function GameMenu() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const { name } = useOutletContext();      // name from the profile corner
-  const isAsta = gameId === "asta_chamma";  // Asta Chamma has 2 bot modes
+  const isAsta = gameId === "asta_chamma";  // single or team
+  const isChourail = gameId === "chourail"; // 2 or 4 players
 
   // Find this game's name and icon from the list
   useEffect(() => {
     getGames().then((list) => setGame(list.find((g) => g.id === gameId)));
   }, [gameId]);
 
-  // Play with bots: make a room where every other seat is a bot, and start at once
+  // Play with bots: make a room where every other place is a bot, and start at once
   async function playWithBots(mode) {
     try {
       const data = await createRoom(gameId, name || "Player", true, mode);
@@ -41,6 +42,15 @@ export default function GameMenu() {
           </button>
           <button onClick={() => playWithBots("team")} className="mb-3 w-full rounded bg-green-700 p-3 text-white">
             Team 2 vs 2 (a bot is your partner)
+          </button>
+        </>
+      ) : isChourail ? (
+        <>
+          <button onClick={() => playWithBots("2")} className="mb-3 w-full rounded bg-green-700 p-3 text-white">
+            2 players (you + 1 bot)
+          </button>
+          <button onClick={() => playWithBots("4")} className="mb-3 w-full rounded bg-green-700 p-3 text-white">
+            4 players (you + 3 bots)
           </button>
         </>
       ) : (

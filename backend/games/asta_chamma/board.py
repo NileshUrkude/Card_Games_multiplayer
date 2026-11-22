@@ -73,7 +73,7 @@ SAFE_CELLS = set(HOMES)
 #   "8" = 4 shells open  -> 8 houses, extra turn
 #   "4" = 0 shells open  -> 4 houses, extra turn
 #   "1", "2", "3"        -> normal throws
-THROWS = {"8": 0.08, "4": 0.12, "1": 0.25, "2": 0.30, "3": 0.25}  # adds up to 1.0
+THROWS = {"8": 0.05, "4": 0.10, "1": 0.25, "2": 0.35, "3": 0.25}  # adds up to 1.0
 # Throws that give an extra turn
 EXTRA_TURN = {"8", "4"}
 
