@@ -17,7 +17,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-100">
       <header className="relative flex items-center justify-between bg-green-900 px-4 py-2 text-white">
-        <Link to="/" className="font-bold">♠ Card Games</Link>
+        <Link to="/" className="font-bold"> TimePass Games</Link>
 
         {/* Profile badge in the corner */}
         <button onClick={() => setOpen(!open)} className="flex items-center gap-2">
