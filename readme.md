@@ -29,4 +29,7 @@ Open your service, click Manual Deploy, then Deploy latest commit.
 
 
 ### What to next
-1. when left room rejoin with same code. or anything for rejoin room 
+1. when left room rejoin with same code. or anything for rejoin room.
+2. In rummy new drew card highlighted little blue.
+3. In chourail arrange group created  auto sort when ready. which one was first goes for round and all. and last four cards not have to select in group.
+4. In rummy set points target for rummy 500.

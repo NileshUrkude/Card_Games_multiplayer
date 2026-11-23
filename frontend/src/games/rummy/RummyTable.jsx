@@ -3,45 +3,31 @@ import { Link } from "react-router-dom";
 import Card from "../../components/Card";
 import ResultOverlay from "../../components/ResultOverlay";
 
-const rankOf = (code) => code.slice(0, -1);
-const suitOf = (code) => code.slice(-1);
-const HOLD_MS = 280;   // how long a card must be pressed before it can be dragged
+const DRAG_PX = 8;          // movement before a press becomes a drag
+const MAX_GROUP = 4;        // most cards in one group
+const MAX_GROUPS = 4;       // most groups
+const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+const rankOf = (c) => c.slice(0, -1);
 
-// Ranks from lowest to highest, with the Ace on top (used for descending order)
-const HIGH_ORDER = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
-const SUITS = ["♠", "♥", "♦", "♣"];
+// Move cards to a target and return the new groups, or null if the move is not allowed.
+// target = {to:"group", index} | {to:"new"} | {to:"loose"}
+function moveCards(groups, cards, target) {
+  // Take the cards out of every group first. Group positions are kept.
+  const stripped = groups.map((g) => g.filter((c) => !cards.includes(c)));
+  let result;
 
-// Sort cards from highest to lowest: A, K, Q, J, 10 ... 2.
-// Cards of the same rank are ordered by suit.
-function sortDesc(list) {
-  return [...list].sort(
-    (a, b) =>
-      HIGH_ORDER.indexOf(rankOf(b)) - HIGH_ORDER.indexOf(rankOf(a)) ||
-      SUITS.indexOf(suitOf(a)) - SUITS.indexOf(suitOf(b))
-  );
-}
-
-// Put a dragged card into the zone it was dropped on.
-// Returns the new groups, or null if the drop is not allowed.
-function moveCard(groups, card, zone) {
-  // 1. take the card out of its current group (it may already be loose)
-  const base = groups.map((g) => g.filter((c) => c !== card));
-
-  // 2. put it where it was dropped
-  if (zone === "ungrouped") return base.filter((g) => g.length > 0);
-
-  if (zone === "new") {
-    if (base.filter((g) => g.length > 0).length >= 4) return null;   // at most 4 groups
-    return [...base, [card]].filter((g) => g.length > 0);
+  if (target.to === "loose") {
+    result = stripped;
+  } else if (target.to === "new") {
+    if (stripped.filter((g) => g.length > 0).length >= MAX_GROUPS) return null;
+    result = [...stripped, [...cards]];
+  } else {
+    const i = target.index;
+    if (i < 0 || i >= stripped.length) return null;
+    if (stripped[i].length + cards.length > MAX_GROUP) return null;
+    result = stripped.map((g, k) => (k === i ? [...g, ...cards] : g));
   }
-
-  if (zone.startsWith("g-")) {
-    const i = Number(zone.slice(2));
-    if (base[i].length >= 4) return null;                            // a group holds 4 cards
-    base[i] = [...base[i], card];
-    return base.filter((g) => g.length > 0);
-  }
-  return null;
+  return result.filter((g) => g.length > 0);
 }
 
 export default function RummyTable({ room, send }) {
@@ -51,30 +37,29 @@ export default function RummyTable({ room, send }) {
   const other = 1 - me;
 
   const myTurn = gs.turn === me && !gs.round_over && !gs.hold;
-  const inDiscard = myTurn && gs.phase === "discard";
   const canDraw = myTurn && gs.phase === "draw";
+  const canDiscard = myTurn && gs.phase === "discard";
+  const isJoker = (c) => rankOf(c) === gs.joker_rank;
   const groups = gs.my_groups;
+  const looseSorted = [...gs.my_ungrouped].sort(
+    (a, b) => RANKS.indexOf(rankOf(b)) - RANKS.indexOf(rankOf(a))
+  );
 
-  const [selected, setSelected] = useState([]);   // cards tapped (not dragged)
-  const [drag, setDrag] = useState(null);         // card being dragged, and where it is
-  const [over, setOver] = useState(null);         // the drop zone under the finger
+  const [selected, setSelected] = useState([]);   // cards tapped so far
+  const [drag, setDrag] = useState(null);         // card being dragged, and its position
+  const [over, setOver] = useState(null);         // zone under the finger
+  const [note, setNote] = useState("");           // short message for a move that is not allowed
 
-  // The latest values for the drop handler
+  // Newest values, read by the pointer and tap handlers
   const latest = useRef({});
   useEffect(() => {
-    latest.current = { groups, ungrouped: gs.my_ungrouped, inDiscard, send };
+    latest.current = { groups, loose: gs.my_ungrouped, canDraw, canDiscard, send };
   });
-  const press = useRef({ timer: null, dragging: false });
 
+  // Only cards that are still in my hand can be selected
   const sel = selected.filter((c) => gs.my_hand.includes(c));
-  const selUngrouped = sel.filter((c) => gs.my_ungrouped.includes(c));
-  const selGrouped = sel.filter((c) => !gs.my_ungrouped.includes(c));
 
-  // Send one action to the server (the server checks it)
-  const act = (obj) => send({ action: "play", card: JSON.stringify(obj) });
-
-  const toggle = (code) =>
-    setSelected((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  const act = (obj) => latest.current.send({ action: "play", card: JSON.stringify(obj) });
 
   // Which drop zone is under this point of the screen?
   function zoneAt(x, y) {
@@ -83,293 +68,302 @@ export default function RummyTable({ room, send }) {
     return zone ? zone.getAttribute("data-drop") : null;
   }
 
-  // Called when a dragged card is let go
-  function drop(card, x, y) {
-    const zone = zoneAt(x, y);
-    const cur = latest.current;
-    if (!zone) return;                       // dropped on nothing: it stays where it was
+  // Put cards into a target. Returns true if the move was sent.
+  function placeCards(cards, target) {
+    const next = moveCards(latest.current.groups, cards, target);
+    if (!next) {
+      setNote(target.to === "new" ? "You can have at most 4 groups" : "That group is full (4 cards at most)");
+      return false;
+    }
+    setNote("");
+    act({ do: "arrange", groups: next });
+    return true;
+  }
 
-    if (zone === "discard") {
-      if (cur.inDiscard && cur.ungrouped.includes(card)) {
-        cur.send({ action: "play", card: JSON.stringify({ do: "discard", card }) });
-      }
+  // Tap a group or the loose area: the selected cards go there
+  function placeSelected(target) {
+    if (sel.length === 0) {
+      setNote("Tap cards to select them first");
       return;
     }
-
-    const next = moveCard(cur.groups, card, zone);
-    if (next) cur.send({ action: "play", card: JSON.stringify({ do: "arrange", groups: next }) });
+    if (placeCards(sel, target)) setSelected([]);
   }
 
-  // Press on a card: a quick tap selects it, holding it lets you drag it
-  function onCardDown(e, code) {
+  // GROUP button: the selected cards (3 or 4) become a new group
+  function groupSelected() {
+    if (sel.length < 3 || sel.length > 4) {
+      setNote("Select 3 or 4 cards to make a group");
+      return;
+    }
+    if (placeCards(sel, { to: "new" })) setSelected([]);
+  }
+
+  // Discard one loose card
+  function discardCard(card) {
+    if (!latest.current.canDiscard) {
+      setNote("You can discard after you draw");
+      return;
+    }
+    if (!latest.current.loose.includes(card)) {
+      setNote("Take this card out of its group first");
+      return;
+    }
+    setNote("");
+    setSelected([]);
+    act({ do: "discard", card });
+  }
+
+  // DISCARD button: discard the one selected loose card
+  function discardSelected() {
+    if (sel.length !== 1) {
+      setNote("Select one loose card to discard");
+      return;
+    }
+    discardCard(sel[0]);
+  }
+
+  // Tap the discard pile: discard the selected card, or draw from the pile
+  function discardPileTap() {
+    if (latest.current.canDiscard) {
+      discardSelected();
+    } else if (latest.current.canDraw) {
+      act({ do: "draw", pile: "discard" });
+    } else {
+      setNote("Wait for your turn");
+    }
+  }
+
+  // Tap the face-down pile: draw a card
+  function deckTap() {
+    if (canDraw) act({ do: "draw", pile: "deck" });
+    else setNote("Wait for your turn to draw");
+  }
+
+  // A drag that ends on a zone
+  function dropOn(card, zone) {
+    if (!zone) return;
+    if (zone === "discard") return discardCard(card);
+    if (zone === "loose") return placeCards([card], { to: "loose" });
+    if (zone.startsWith("group-")) {
+      return placeCards([card], { to: "group", index: Number(zone.slice(6)) });
+    }
+  }
+
+  // Tap a card to select it or unselect it
+  function toggleSelect(card) {
+    setSelected((s) => (s.includes(card) ? s.filter((c) => c !== card) : [...s, card]));
+  }
+
+  // Press a card. Moving it a little starts a drag. Lifting without moving is a tap.
+  function pressCard(e, card) {
     if (gs.round_over) return;
-    const p = press.current;
-    p.dragging = false;
-    clearTimeout(p.timer);
-    let x = e.clientX;
-    let y = e.clientY;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let moved = false;
 
-    p.timer = setTimeout(() => {
-      p.dragging = true;
-      setDrag({ card: code, x, y });
-    }, HOLD_MS);
-
-    const move = (ev) => {
-      x = ev.clientX;
-      y = ev.clientY;
-      if (!p.dragging) return;
-      setDrag({ card: code, x, y });
-      setOver(zoneAt(x, y));
-    };
-
-    const up = (ev) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      clearTimeout(p.timer);
-      if (p.dragging) {
-        p.dragging = false;
-        setDrag(null);
-        setOver(null);
-        drop(code, ev.clientX, ev.clientY);
-      } else {
-        toggle(code);                        // a quick tap
+    const onMove = (ev) => {
+      if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) > DRAG_PX) moved = true;
+      if (moved) {
+        setDrag({ card, x: ev.clientX, y: ev.clientY });
+        setOver(zoneAt(ev.clientX, ev.clientY));
       }
     };
-
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    const onUp = (ev) => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (moved) {
+        dropOn(card, zoneAt(ev.clientX, ev.clientY));
+        setDrag(null);
+        setOver(null);
+      } else {
+        toggleSelect(card);
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   }
 
-  // One card in a row. Each card after the first covers half of the card before it.
-  // The card you just drew gets a blue outline until you discard it.
-  const cardBox = (c, i) => {
-    const justDrawn = c === gs.drawn_card;
+  // One card in a row. Selected cards lift up with a green border.
+  // The card just drawn gets a blue outline. Jokers glow and show a 🃏.
+  const cardEl = (c, k, overlap) => {
+    const fresh = c === gs.drawn_card;
     return (
       <div
         key={c}
-        onPointerDown={(e) => onCardDown(e, c)}
-        className={
-          "shrink-0 touch-none select-none rounded-md " +
-          (justDrawn ? "ring-2 ring-blue-500 " : "") +
-          (drag && drag.card === c ? "opacity-40" : "")
-        }
-        style={{ marginLeft: i === 0 ? 0 : -20 }}
+        data-card
+        onPointerDown={(e) => pressCard(e, c)}
+        className={"shrink-0 touch-none select-none " + (drag && drag.card === c ? "opacity-40" : "")}
+        style={{ marginLeft: k === 0 ? 0 : overlap }}
       >
-        <Card code={c} size="sm" playable={sel.includes(c)} highlight={rankOf(c) === gs.joker_rank} />
+        <div className={"relative rounded-md " + (fresh ? "ring-4 ring-blue-500" : "")}>
+          <Card code={c} size="sm" playable={sel.includes(c)} highlight={isJoker(c)} />
+        </div>
       </div>
     );
   };
-  
-  // Buttons
-  const makeGroup = () => act({ do: "arrange", groups: [...groups, selUngrouped] });
-  const removeSelected = () =>
-    act({
-      do: "arrange",
-      groups: groups.map((g) => g.filter((c) => !selGrouped.includes(c))).filter((g) => g.length > 0),
-    });
-  const discard = () => {
-    act({ do: "discard", card: selUngrouped[0] });
-    setSelected([]);
-  };
-  const draw = (pile) => {
-    act({ do: "draw", pile });
-    setSelected([]);
+
+
+  // A player name plate. Highlighted on that player's turn.
+  const plate = (s, sub) => {
+    const active = gs.turn === s && !gs.round_over;
+    return (
+      <div
+        className={
+          "min-w-18 rounded-md border-2 px-2 py-1 text-center text-xs font-bold text-white shadow " +
+          (active ? "border-yellow-300 bg-red-700" : "border-yellow-600 bg-red-900")
+        }
+      >
+        <div className="truncate">
+          {names[s]}
+          {s === me && " (you)"}
+        </div>
+        <div className="text-[10px] font-semibold text-yellow-200">
+          {gs.scores[s]}/{gs.target} · {sub}
+        </div>
+      </div>
+    );
   };
 
-  // My loose cards, shown from highest to lowest
-  const looseSorted = sortDesc(gs.my_ungrouped);
+  // Instruction in the centre of the table
+  let banner;
+  if (gs.round_over) banner = "ROUND OVER";
+  else if (!myTurn) banner = `${names[gs.turn]} is playing...`;
+  else if (gs.phase === "draw") banner = "DRAW A CARD";
+  else banner = gs.timer_left != null ? `DISCARD A CARD · ${gs.timer_left}s` : "DISCARD A CARD";
 
-  // Short hint for what to do next
-  let hint = "";
-  if (gs.round_over) hint = "Round over";
-  else if (!myTurn && gs.turn === other) hint = `${names[other]} is playing...`;
-  else if (gs.phase === "draw") hint = "Tap the face-down pile or the discard pile";
-  else if (gs.phase === "discard")
-    hint = "Hold a card and drag it into groups. Then discard one loose card. If your other 13 cards are valid groups, the discard wins the round.";
+  const rows = names.map((nm, s) => ({
+    name: nm,
+    you: s === me,
+    detail: `+${gs.round_points[s]}`,
+    total: gs.scores[s],
+    good: s === gs.winner,
+  }));
+
+  // Button state
+  const canGroup = gs.round_over === false && sel.length >= 3 && sel.length <= 4 && groups.length < MAX_GROUPS;
+  const canDiscardBtn = canDiscard && sel.length === 1 && gs.my_ungrouped.includes(sel[0]);
 
   return (
-    <div className="relative mx-auto w-full max-w-md rounded-3xl bg-green-800 p-3 text-white shadow-inner">      {/* Header: round, joker and scores */}
+    <div className="relative mx-auto w-full max-w-md rounded-3xl bg-green-900 p-3 text-white shadow-inner">
+      {/* Header */}
       <div className="mb-2 flex items-center justify-between text-sm">
         <span className="font-bold">Rummy · Round {gs.round}</span>
         <span className="rounded bg-yellow-300 px-2 py-1 text-xs font-bold text-black">
           Joker: {gs.joker_rank}
         </span>
       </div>
-      <div className="mb-2 grid grid-cols-2 gap-2 text-center text-xs">
-        <div className={"rounded p-2 text-white " + (myTurn ? "bg-green-600 ring-2 ring-yellow-300" : "bg-green-900")}>
-          {names[me]} (you) · {gs.scores[me]} pts
-        </div>
-        <div
-          className={
-            "rounded p-2 text-white " +
-            (gs.turn === other && !gs.round_over ? "bg-green-700 ring-2 ring-yellow-300" : "bg-green-900")
-          }
-        >
-          {names[other]} · {gs.scores[other]} pts
-        </div>
-      </div>
 
-      {/* Opponent: hidden cards (only the count is real) */}
-      <div className="mb-3 text-center">
-        <p className="mb-1 text-xs font-semibold">
-          {names[other]} · {gs.opp_count} cards
-          {gs.turn === other && !gs.round_over && (
-            <span className="ml-2 animate-pulse text-yellow-300">thinking...</span>
-          )}
-        </p>
-        <div className="flex justify-center">
-          {Array.from({ length: gs.opp_count }, (_, i) => (
-            <Card key={i} back size="xs" style={{ marginLeft: i === 0 ? 0 : -18 }} />
-          ))}
+      {/* The table, like the other games */}
+      <div className="relative h-48 rounded-[3rem] border-10px border-amber-700 bg-linear-to-b from-blue-500 to-blue-700 shadow-inner">
+        {/* Opponent name plate, at the top */}
+        <div className="absolute left-1/2 top-2 -translate-x-1/2">
+          {plate(other, `${gs.opp_count} cards`)}
         </div>
-      </div>
 
-      {/* 1-minute discard timer (shown to the player who must discard) */}
-      {gs.timer_left !== null && gs.timer_left !== undefined && !gs.round_over && (
-        <p
-          className={
-            "mb-2 rounded p-2 text-center text-sm font-bold " +
-            (gs.timer_left <= 10 ? "bg-red-600 text-white" : "bg-yellow-200 text-black")
-          }
-        >
-          {myTurn
-            ? `Discard within ${gs.timer_left}s, or the drawn card is discarded for you`
-            : `${names[gs.turn]} has ${gs.timer_left}s to discard`}
-        </p>
-      )}
-
-      {/* The piles: face-down (with the Joker card beside it) and the discard */}
-      <div className="mb-3 flex items-center justify-center gap-6">
-        <div className="flex flex-col items-center">
-          <div className="flex items-end gap-2">
-            <button
-              type="button"
-              disabled={!canDraw || gs.draw_count === 0}
-              onClick={() => draw("deck")}
-              className="disabled:opacity-40"
-            >
-              <Card back size="md" />
-            </button>
-            {gs.indicator && <Card code={gs.indicator} size="sm" highlight />}
+        {/* Centre: joker card, face-down pile, face-up discard pile */}
+        <div className="absolute inset-x-0 top-[55%] flex -translate-y-1/2 items-center justify-center gap-4">
+          <div className="-rotate-12">
+            <Card code={gs.indicator} size="sm" highlight />
           </div>
-          <span className="mt-1 text-xs">Face-down · {gs.draw_count}</span>
+
+          <button type="button" onClick={deckTap} className="relative">
+            <Card back size="sm" />
+            <span className="absolute -bottom-4 left-0 right-0 text-center text-[10px] font-semibold">
+              Draw {gs.draw_count}
+            </span>
+          </button>
+
+          <div
+            data-drop="discard"
+            onClick={discardPileTap}
+            className={
+              "relative flex cursor-pointer flex-col items-center rounded-md " +
+              (over === "discard" ? "ring-4 ring-yellow-300" : "")
+            }
+          >
+            {gs.discard_top ? (
+              <Card code={gs.discard_top} size="sm" highlight={isJoker(gs.discard_top)} />
+            ) : (
+              <div className="h-14 w-10 rounded border border-dashed border-white/60" />
+            )}
+            <span className="mt-4 text-[10px] font-semibold">Discard {gs.discard_count}</span>
+          </div>
         </div>
 
-        <button
-          type="button"
-          data-drop="discard"
-          disabled={!canDraw || !gs.discard_top}
-          onClick={() => draw("discard")}
-          className={
-            "flex flex-col items-center disabled:opacity-40 " +
-            (over === "discard" ? "rounded ring-4 ring-yellow-300" : "")
-          }
-        >
-          {gs.discard_top ? (
-            <Card code={gs.discard_top} size="md" highlight={rankOf(gs.discard_top) === gs.joker_rank} />
-          ) : (
-            <div className="h-16 w-11 rounded border border-dashed" />
-          )}
-          <span className="mt-1 text-xs">Discard · {gs.discard_count}</span>
-        </button>
+        {/* Instruction */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border-2 border-yellow-300 bg-amber-900 px-3 py-1 text-[11px] font-extrabold uppercase">
+          {banner}
+        </div>
       </div>
 
-      {/* Groups 1 to 4 in ONE row. Each slot is fixed in width, so nothing scrolls.
-          The label is stacked: name on top, tick or cross centred below it. */}
-      <div className="mb-2 grid grid-cols-4 gap-1">
-        {[0, 1, 2, 3].map((i) => {
-          const g = groups[i];                       // the group in this slot, or undefined
-          const status = (g && gs.my_group_status[i]) || { ok: false, reason: "" };
-          const empty = !g;
-          const zone = empty ? "new" : `g-${i}`;
+      {/* My name plate, at the bottom */}
+      <div className="mt-3 flex justify-center">{plate(me, `${gs.my_hand.length} cards`)}</div>
 
+      {/* My row: groups and loose cards in ONE row.
+          Each group has a green (valid) or red (not correct) line under it.
+          No extra box, so the row does not grow. */}
+      <div className="mt-2 flex min-h-14 items-end overflow-x-auto pb-2 pt-4">        {groups.map((g, i) => {
+          const st = gs.my_group_status[i] || { ok: false, reason: "" };
+          const zone = `group-${i}`;
           return (
             <div
               key={i}
               data-drop={zone}
-              className={"min-w-0 rounded-md p-0.5 " + (over === zone ? "bg-yellow-300/40" : "")}
+              title={st.ok ? "Valid group" : st.reason}
+              onClick={(e) => {
+                if (!e.target.closest("[data-card]")) placeSelected({ to: "group", index: i });
+              }}
+              className={"mr-3 flex shrink-0 cursor-pointer flex-col " + (over === zone ? "opacity-90" : "")}
             >
-              {/* Label: group name on top, then the count and tick/cross centred below */}
-              <div className="mb-1 text-center text-[10px] font-semibold leading-tight text-white">
-                <div className="truncate">G{i + 1}</div>
-                {!empty && (
-                  <div className="flex items-center justify-center gap-0.5 whitespace-nowrap">
-                    <span>{g.length}</span>
-                    <span className={status.ok ? "text-green-300" : "text-red-300"}>
-                      {status.ok ? "✓" : "✕"}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* The cards of this group. Fixed size, no scrolling. */}
-              <div className="flex h-26 items-center justify-center overflow-hidden">
-                {empty ? (
-                  <span className="text-center text-[10px] text-white/70">Drop here</span>
-                ) : (
-                  g.map((c, k) => (
-                    <div
-                      key={c}
-                      onPointerDown={(e) => onCardDown(e, c)}
-                      className="shrink-0 touch-none select-none"
-                      style={{ marginLeft: k === 0 ? 0 : -12 }}   // overlap so 4 cards fit
-                    >
-                      <Card
-                        code={c}
-                        size="xs"
-                        style={{ width: 28, height: 44 }}
-                        playable={sel.includes(c)}
-                        highlight={rankOf(c) === gs.joker_rank}
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
+              <div className="flex items-end">{g.map((c, k) => cardEl(c, k, -16))}</div>
+              <div className={"mt-1 h-1 rounded-full " + (st.ok ? "bg-green-500" : "bg-red-500")} />
             </div>
           );
         })}
-      </div>
-      
-      {/* Loose cards: one row, highest first. Drop here to take a card out of its group. */}
-      <div
-        data-drop="ungrouped"
-        className={"mb-3 rounded-xl bg-green-900/40 p-2 " + (over === "ungrouped" ? "ring-4 ring-yellow-300" : "")}
-      >
-        <p className="mb-1 text-xs font-semibold text-white">Loose cards · {gs.my_ungrouped.length}</p>
-        <div className="flex min-h-18 flex-nowrap items-center overflow-x-auto pb-1 pt-2">
-          {looseSorted.map((c, i) => cardBox(c, i))}
+
+        {/* Loose cards: same row. Tap the area to take selected cards out of their groups. */}
+        <div
+          data-drop="loose"
+          onClick={(e) => {
+            if (!e.target.closest("[data-card]")) placeSelected({ to: "loose" });
+          }}
+          className={"flex shrink-0 cursor-pointer flex-col " + (over === "loose" ? "opacity-90" : "")}
+        >
+          <div className="flex items-end">{looseSorted.map((c, k) => cardEl(c, k, -18))}</div>
+          <div className="mt-1 h-1 rounded-full bg-white/40" />
         </div>
       </div>
 
-      {/* All buttons in one row */}
-      <div className="mb-2 flex gap-2 text-xs">
+      {/* Buttons: GROUP makes a new group from selected cards, DISCARD discards one loose card */}
+      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
         <button
-          disabled={gs.round_over || selUngrouped.length < 3 || selUngrouped.length > 4 || groups.length >= 4}
-          onClick={makeGroup}
-          className="flex-1 rounded bg-green-500 p-2 font-semibold text-white disabled:opacity-40"
+          disabled={!canGroup}
+          onClick={groupSelected}
+          className="rounded-md border-2 border-yellow-500 bg-purple-800 py-2 font-extrabold uppercase text-white shadow disabled:opacity-40"
         >
-          Make group
+          Group
         </button>
         <button
-          disabled={gs.round_over || selGrouped.length === 0}
-          onClick={removeSelected}
-          className="flex-1 rounded bg-gray-700 p-2 font-semibold text-white disabled:opacity-40"
+          disabled={!canDiscardBtn}
+          onClick={discardSelected}
+          className="rounded-md border-2 border-yellow-500 bg-orange-700 py-2 font-extrabold uppercase text-white shadow disabled:opacity-40"
         >
-          Remove from group
-        </button>
-        <button
-          disabled={!inDiscard || selUngrouped.length !== 1}
-          onClick={discard}
-          className="flex-1 rounded bg-orange-600 p-2 font-bold text-white disabled:opacity-40"
-        >
-          Discard selected
+          Discard
         </button>
       </div>
 
-      {hint && <p className="mb-2 text-center text-xs text-white/80">{hint}</p>}
-      <p className="rounded bg-green-500 p-2 text-center text-sm">{gs.message}</p>
+      {sel.length > 0 && (
+        <p className="mt-2 text-center text-xs text-yellow-200">Selected: {sel.length}</p>
+      )}
+
+      {note && <p className="mt-2 rounded bg-red-600/80 p-2 text-center text-xs">{note}</p>}
+
+      <p className="mt-2 rounded bg-yellow-100 p-2 text-center text-sm text-black">{gs.message}</p>
+
       <div className="mt-2 text-center">
-        <Link to="/" className="text-xs text-white/70 underline">Main menu</Link>
+        <Link to="/" className="text-xs text-white/70 underline">
+          Main menu
+        </Link>
       </div>
 
       {/* The card being dragged follows the finger */}
@@ -382,24 +376,24 @@ export default function RummyTable({ room, send }) {
         </div>
       )}
 
-      {/* Round result (dark text, because the pop-up card is white) */}
+      {/* Round result, or the final result when someone has reached the target */}
       {gs.round_over && (
-        <div className="text-black">
-          <ResultOverlay
-            title={`${names[gs.winner]} wins the round`}
-            subtitle="The winner gets the loser's loose card points"
-            rows={names.map((n, s) => ({
-              name: n,
-              you: s === me,
-              detail: `+${gs.round_points[s]}`,
-              total: gs.scores[s],
-              good: s === gs.winner,
-            }))}
-            matchOver={false}
-            isHost={room.is_host}
-            onNext={() => send({ action: "next_round" })}
-          />
-        </div>
+        <ResultOverlay
+          title={
+            gs.match_over
+              ? `${names[gs.final_winner]} wins the game!`
+              : `${names[gs.winner]} wins the round`
+          }
+          subtitle={
+            gs.match_over
+              ? `First to ${gs.target} points`
+              : "The winner gets the loser's loose card points"
+          }
+          rows={rows}
+          matchOver={!!gs.match_over}
+          isHost={room.is_host}
+          onNext={() => send({ action: "next_round" })}
+        />
       )}
     </div>
   );

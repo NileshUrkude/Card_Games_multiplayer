@@ -20,7 +20,7 @@ RANK_VALUE = {"2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
               "10": 10, "J": 11, "Q": 12, "K": 13, "A": 14}
 GROUP_SIZES = [3, 3, 3, 4]     # Group 1 to 3 have 3 cards, Group 4 has 4
 ROUNDS = 4                     # one round per group
-TARGET = 1000                  # the deal in which someone reaches this ends the game
+TARGET = 500                  # the deal in which someone reaches this ends the game
 
 # Sequences from strongest to weakest.
 # Ace is high in A-K-Q and low in A-2-3. K-A-2 is not allowed.
@@ -220,12 +220,19 @@ class ChourailGame(BaseGame):
             result.append(row)
         return result
 
+    def ordered(self, arr):
+        """Put the three 3-card groups in strength order, strongest first.
+        Group 4 (the 4-card group) always stays last."""
+        triples = arr[:3]
+        if all(len(g) == 3 for g in triples):
+            triples = sorted(triples, key=lambda g: group_strength(tuple(sorted(g)))[0], reverse=True)
+        return triples + [arr[3]]
+
     def check(self, seat):
-        """Is this arrangement valid? Returns a list of problems and the group names."""
-        arr = self.arr[seat]
+        """Is this arrangement valid? Returns the problems and the combination names."""
+        arr = self.ordered(self.arr[seat])
         errors = []
         assigned = [c for g in arr for c in g]
-
         for i, g in enumerate(arr):
             if len(g) != GROUP_SIZES[i]:
                 errors.append(f"Group {i + 1} needs {GROUP_SIZES[i]} cards (has {len(g)})")
@@ -236,14 +243,21 @@ class ChourailGame(BaseGame):
         names = [group_strength(tuple(sorted(g)))[1] if len(g) in (3, 4) else None for g in arr]
 
         if not errors:
-            # Group 1 must be the strongest, Group 4 the weakest
             strengths = [group_strength(tuple(sorted(g)))[0] for g in arr]
-            for i in range(3):
-                if strengths[i] < strengths[i + 1]:
-                    errors.append(f"Group {i + 2} is stronger than Group {i + 1}. "
-                                  f"Move the stronger group to the left.")
+            # Group 4 must not be stronger than the weakest of the first three
+            if strengths[3] > strengths[2]:
+                errors.append("Group 4 is stronger than Group 3. Group 4 must be the weakest.")
         return {"ok": not errors, "errors": errors, "names": names}
 
+    def autofill_last(self, seat):
+        """When Groups 1 to 3 are full, the 4 cards left go into Group 4 by themselves."""
+        arr = self.arr[seat]
+        if all(len(arr[i]) == GROUP_SIZES[i] for i in range(3)) and not arr[3]:
+            used = {c for g in arr for c in g}
+            left = [c for c in self.hands[seat] if c not in used]
+            if len(left) == GROUP_SIZES[3]:
+                arr[3] = left
+    
     # ---------- what a player may do ----------
 
     def legal_moves(self, seat):
@@ -262,9 +276,10 @@ class ChourailGame(BaseGame):
 
         if kind == "set":
             self.arr[seat] = self.clean(seat, data.get("groups", []))
+            self.autofill_last(seat)          # the last 4 cards go to Group 4 by themselves
             return True
         if kind == "validate":
-            return True                            # the check is always shown anyway
+            return True
         if kind == "auto":
             self.arr[seat] = auto_arrange(self.hands[seat])
             return True
@@ -272,6 +287,8 @@ class ChourailGame(BaseGame):
             self.arr[seat] = [[], [], [], []]
             return True
         if kind == "confirm":
+            # READY: put the three 3-card groups in strength order (Group 1 = strongest)
+            self.arr[seat] = self.ordered(self.arr[seat])
             problems = self.check(seat)["errors"]
             if problems:
                 self.notice[seat] = "Fix this first: " + problems[0]
@@ -279,10 +296,10 @@ class ChourailGame(BaseGame):
             self.confirmed[seat] = True
             self.notice[seat] = ""
             if all(self.confirmed):
-                self.start_reveal()                # everyone is ready: round 1 begins
+                self.start_reveal()           # everyone is ready: round 1 begins
             return True
         return False
-
+    
     # ---------- the rounds ----------
 
     def start_reveal(self):
@@ -297,15 +314,22 @@ class ChourailGame(BaseGame):
         self.pending = "reveal"
         self.message = f"Round {self.round}: {self.name(self.leader)} shows first"
 
+    def running_totals(self):
+        """Each player's total: points from earlier deals plus points of this deal so far."""
+        return [self.totals[s] + sum(self.round_pts[k][s] for k in range(ROUNDS))
+                for s in range(len(self.seats))]
+
     def finish_round(self):
-        """Find the round winner, give them every point played, then continue by itself:
-        the next round of this deal, the next deal, or the final result."""
+        """Find the round winner and give them every point played.
+        Then check the target at once:
+        - if someone's total has reached TARGET (500), the game ends now,
+        - otherwise the next round or deal starts after a short pause."""
         n = len(self.seats)
         r = self.round - 1
 
         # The strongest group wins. On a tie, the player who showed LATER wins.
         best_seat, best_key, best_name = None, None, ""
-        for p in self.plays:                       # plays are in the order they were shown
+        for p in self.plays:
             key, name, _ = group_strength(tuple(sorted(p["cards"])))
             if best_key is None or key >= best_key:
                 best_seat, best_key, best_name = p["seat"], key, name
@@ -314,38 +338,40 @@ class ChourailGame(BaseGame):
         self.round_pts[r][best_seat] += points
         self.round_history.append({"round": self.round, "winner": best_seat,
                                    "name": best_name, "points": points})
-        self.leader = best_seat                    # the round winner leads the next round
+        self.leader = best_seat
         self.message = (f"{self.name(best_seat)} wins round {self.round} with "
                         f"{best_name} and collects {points} points.")
 
-        # More rounds in this deal: pause, then the next round starts by itself
+        running = self.running_totals()
+        top = max(running)
+
+        if top >= TARGET:
+            # The first to reach the target wins. If two reach it in the same round,
+            # the higher total wins, and a tie goes to the round winner.
+            winners = [s for s in range(n) if running[s] == top]
+            if len(winners) > 1 and best_seat in winners:
+                winners = [best_seat]
+            self.final_winners = winners
+            self.match_over = True
+            self.set_phase("final")
+            self.message = (" & ".join(self.name(s) for s in winners)
+                            + f" reached {TARGET} first. Game over!")
+            return
+
         if self.round < ROUNDS:
+            # More rounds in this deal: a short pause, then the next round starts by itself
             self.set_phase("round_result")
             self.hold = True
             self.hold_for = 3.0
             self.pending = "next"
             return
 
-        # The deal is over: add its points to the totals
-        deal_points = [sum(self.round_pts[k][s] for k in range(ROUNDS)) for s in range(n)]
-        self.totals = [self.totals[s] + deal_points[s] for s in range(n)]
-        top = max(self.totals)
-
-        if top >= TARGET:
-            # Someone reached the target: the game is over, no more deals
-            self.match_over = True
-            self.final_winners = [s for s in range(n) if self.totals[s] == top]
-            self.set_phase("final")
-            self.message = "Game over! " + " & ".join(self.name(s) for s in self.final_winners) + " wins."
-            return
-
-        # Nobody reached the target yet: pause, then the next deal starts by itself
+        # The deal is finished and nobody has reached the target: next deal after a pause
         self.set_phase("deal_result")
         self.message = f"Deal {self.deal_no} finished. The next deal starts automatically."
         self.hold = True
         self.hold_for = 4.0
         self.pending = "next"
-
     # ---------- the 1 second hold ----------
 
     def advance(self):
@@ -372,13 +398,15 @@ class ChourailGame(BaseGame):
             self.finish_round()
 
         elif step == "next":
-            # The pause after a result is over: start the next round, or the next deal
             if self.phase == "round_result":
+                # The pause is over: start the next round of this deal
                 self.round += 1
                 self.start_reveal()
             elif self.phase == "deal_result":
+                # The deal is over: its points become part of each total, then a new deal
+                self.totals = self.running_totals()
                 self.deal()
-                
+                                
     # ---------- the bots ----------
 
     def bot_move(self, seat):

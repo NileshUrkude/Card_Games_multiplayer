@@ -20,7 +20,7 @@ SUITS = ["♠", "♥", "♦", "♣"]
 MAX_GROUPS = 4
 MAX_ROUND_POINTS = 80
 DRAW_TIME = 60            # seconds to discard after drawing (human players only)
-
+MATCH_TARGET = 500        # the first player to reach this total wins the game
 
 def make_deck():
     """All 52 cards as text, like 'A♠' or '10♥'."""
@@ -74,6 +74,8 @@ class RummyGame(BaseGame):
 
     def start(self):
         self.scores = [0, 0]              # total points: seat 0 (human), seat 1 (computer)
+        self.match_over = False           # True when someone has reached MATCH_TARGET
+        self.final_winner = None
         self.round = 0
         self.round_over = False
         self.winner = None
@@ -114,9 +116,10 @@ class RummyGame(BaseGame):
         self.message = f"Round {self.round}. Joker: {self.joker_rank}. {self.name(self.turn)} starts."
 
     def next_round(self):
-        """The host starts a new round after the last one is finished."""
-        if self.round_over:
+        """The host starts a new round, unless the game is already over."""
+        if self.round_over and not self.match_over:
             self.deal()
+
 
     # ---------- checking groups ----------
 
@@ -359,7 +362,7 @@ class RummyGame(BaseGame):
 
     def end_round(self, winner):
         """The winner gets the loser's loose card points (capped at 80).
-        The loser gets 0 for this round."""
+        The first player to reach MATCH_TARGET (500) wins the whole game."""
         loser = 1 - winner
         self.revealed = [self.arrangement(0), self.arrangement(1)]
         grouped = {c for g in self.revealed[loser] for c in g}
@@ -372,8 +375,13 @@ class RummyGame(BaseGame):
         self.round_over = True
         self.winner = winner
         self.phase = "over"
-        self.message = f"{self.name(winner)} went out and wins the round! +{points} points"
 
+        if self.scores[winner] >= MATCH_TARGET:
+            self.match_over = True
+            self.final_winner = winner
+            self.message = f"{self.name(winner)} reaches {MATCH_TARGET} and wins the game!"
+        else:
+            self.message = f"{self.name(winner)} went out and wins the round! +{points} points"
     # ---------- the computer player ----------
 
     def bot_pick_pile(self, seat):
@@ -434,6 +442,10 @@ class RummyGame(BaseGame):
             "discard_count": len(self.discard),
             "scores": self.scores,
             "round": self.round,
+            "drawn_card": self.drawn_card if seat == self.turn else None,   # the card just drawn (blue)
+            "target": MATCH_TARGET,
+            "match_over": self.match_over,
+            "final_winner": self.final_winner,
             "round_points": self.round_points,
             "round_over": self.round_over,
             "winner": self.winner,
