@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
-import { getGames, createRoom, savePlayer } from "../api";
+import { getGames, cachedGames, createRoom, savePlayer } from "../api";
 
 export default function GameMenu() {
   const { gameId } = useParams();
-  const [game, setGame] = useState(null);
+  // Use the remembered list at once, so the menu opens without waiting for the server
+  const [game, setGame] = useState(() => cachedGames().find((g) => g.id === gameId) || null);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const { name } = useOutletContext();      // name from the profile corner
@@ -13,7 +14,9 @@ export default function GameMenu() {
 
   // Find this game's name and icon from the list
   useEffect(() => {
-    getGames().then((list) => setGame(list.find((g) => g.id === gameId)));
+    getGames()
+      .then((list) => setGame(list.find((g) => g.id === gameId)))
+      .catch(() => setError("Could not reach the game server. Refresh the page to try again."));
   }, [gameId]);
 
   // Play with bots: make a room where every other place is a bot, and start at once
@@ -27,8 +30,15 @@ export default function GameMenu() {
     }
   }
 
-  if (!game) return <p className="p-6">Loading...</p>;
-
+  if (!game && !error) {
+    return (
+      <p className="p-6 text-center">
+        Connecting to the game server... the first visit after a break can take up to a minute.
+      </p>
+    );
+  }
+  if (!game) return <p className="p-6 text-center text-red-600">{error}</p>;
+  
   return (
     <div className="mx-auto max-w-md p-6 text-center">
       <div className="text-5xl">{game.icon}</div>

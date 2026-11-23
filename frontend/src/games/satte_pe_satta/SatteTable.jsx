@@ -94,7 +94,7 @@ export default function SatteTable({ room, send }) {
         turn={gs.round_over ? null : gs.turn}
         info={gs.scores.map((s) => `${s} pts`)}
         status={gs.status}
-        height="h-[min(55rem,95vh)]"
+        height="h-[min(45rem,85vh)]"
         bottom={
           <div className="text-center">
             <PlayerTag name={names[me] + " (you)"} active={meActive} info={`${gs.scores[me]} pts`} />
